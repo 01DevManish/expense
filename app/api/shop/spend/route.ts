@@ -3,6 +3,7 @@ import { verifyShopPin } from "@/lib/auth";
 import { getAppState } from "@/lib/state";
 import { getFirebaseDb } from "@/lib/firebaseAdmin";
 import { getKolkataDateKeys } from "@/lib/date";
+import { sendTxnNotification } from "@/lib/fcm";
 
 const allowedItems = ["tea", "coffee", "packet_5", "packet_10", "packet_20"] as const;
 type SpendItem = (typeof allowedItems)[number];
@@ -106,6 +107,19 @@ export async function POST(req: NextRequest) {
       created_at: now.toISOString(),
       created_at_ms: now.getTime()
     });
+
+    await db.ref("notifications").push({
+      audience: "all",
+      title: "Token Spent",
+      message: `${labelMap[item]}: ${required} tokens (qty ${quantity}). Balance is ${newBalance}.`,
+      created_at: now.toISOString(),
+      created_at_ms: now.getTime()
+    });
+    try {
+      await sendTxnNotification("Token Spent", `${labelMap[item]}: ${required} tokens (qty ${quantity}). Balance is ${newBalance}.`);
+    } catch {
+      // Keep spend successful even if push fails.
+    }
 
     const state = await getAppState();
     return NextResponse.json({ ok: true, state }, { headers: { "Cache-Control": "no-store" } });

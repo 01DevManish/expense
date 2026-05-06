@@ -33,6 +33,16 @@ export type AppState = {
   todaySummary: Summary;
   monthSummary: Summary;
   recentTransactions: TransactionRow[];
+  recentNotifications: NotificationRow[];
+};
+
+export type NotificationRow = {
+  id: string;
+  audience: "admin" | "shop" | "all";
+  title: string;
+  message: string;
+  created_at: string;
+  created_at_ms: number;
 };
 
 type Settings = {
@@ -132,10 +142,32 @@ async function fetchTransactions(limit = 200): Promise<TransactionRow[]> {
   return rows.sort((a, b) => b.created_at_ms - a.created_at_ms);
 }
 
+async function fetchNotifications(limit = 100): Promise<NotificationRow[]> {
+  const db = getFirebaseDb();
+  const snap = await db.ref("notifications").orderByChild("created_at_ms").limitToLast(limit).get();
+  if (!snap.exists()) return [];
+
+  const rows: NotificationRow[] = [];
+  snap.forEach((child) => {
+    const v = child.val() as Partial<NotificationRow>;
+    rows.push({
+      id: child.key || "",
+      audience: v.audience === "admin" || v.audience === "shop" ? v.audience : "all",
+      title: typeof v.title === "string" ? v.title : "Notification",
+      message: typeof v.message === "string" ? v.message : "",
+      created_at: typeof v.created_at === "string" ? v.created_at : new Date(0).toISOString(),
+      created_at_ms: Number(v.created_at_ms ?? 0)
+    });
+    return false;
+  });
+  return rows.sort((a, b) => b.created_at_ms - a.created_at_ms);
+}
+
 export async function getAppState(): Promise<AppState> {
   const { dateKey, monthKey } = getKolkataDateKeys();
   const settings = await ensureSettings();
   const recentTransactions = await fetchTransactions(200);
+  const recentNotifications = await fetchNotifications(100);
   const today = recentTransactions.filter((r) => r.date_key === dateKey);
   const month = recentTransactions.filter((r) => r.month_key === monthKey);
 
@@ -150,7 +182,8 @@ export async function getAppState(): Promise<AppState> {
     },
     todaySummary: sumRows(today),
     monthSummary: sumRows(month),
-    recentTransactions
+    recentTransactions,
+    recentNotifications
   };
 }
 

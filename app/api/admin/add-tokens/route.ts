@@ -3,6 +3,7 @@ import { verifyAdminPin } from "@/lib/auth";
 import { getAppState } from "@/lib/state";
 import { getFirebaseDb } from "@/lib/firebaseAdmin";
 import { getKolkataDateKeys } from "@/lib/date";
+import { sendTxnNotification } from "@/lib/fcm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,6 +57,19 @@ export async function POST(req: NextRequest) {
       created_at: now.toISOString(),
       created_at_ms: now.getTime()
     });
+
+    await db.ref("notifications").push({
+      audience: "all",
+      title: "Token Added",
+      message: `Admin added ${amount} tokens. Balance is ${Number(updated.balance_tokens ?? 0)}.`,
+      created_at: now.toISOString(),
+      created_at_ms: now.getTime()
+    });
+    try {
+      await sendTxnNotification("Token Added", `Admin added ${amount} tokens. Balance is ${Number(updated.balance_tokens ?? 0)}.`);
+    } catch {
+      // Keep token update successful even if push fails.
+    }
 
     const state = await getAppState();
     return NextResponse.json({ ok: true, state }, { headers: { "Cache-Control": "no-store" } });

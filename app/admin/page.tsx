@@ -14,7 +14,8 @@ function initialState(): AppState {
     costs: { tea: 10, coffee: 10, packet5: 5, packet10: 10, packet20: 20 },
     todaySummary: { teaCount: 0, teaTokens: 0, coffeeCount: 0, coffeeTokens: 0, packetCount: 0, packetTokens: 0, totalSpent: 0, totalAdded: 0 },
     monthSummary: { teaCount: 0, teaTokens: 0, coffeeCount: 0, coffeeTokens: 0, packetCount: 0, packetTokens: 0, totalSpent: 0, totalAdded: 0 },
-    recentTransactions: []
+    recentTransactions: [],
+    recentNotifications: []
   };
 }
 
@@ -32,7 +33,10 @@ export default function AdminPage() {
   const [monthFilter, setMonthFilter] = useState("");
   const [rows, setRows] = useState<AppState["recentTransactions"]>([]);
   const [page, setPage] = useState(1);
+  const [showBell, setShowBell] = useState(false);
+  const [lastSeenMs, setLastSeenMs] = useState(0);
   const lockRef = useRef(false);
+  const BELL_KEY = "admin_notifications_seen_ms";
 
   const loadState = async () => {
     if (lockRef.current) return;
@@ -54,6 +58,8 @@ export default function AdminPage() {
   useEffect(() => {
     const isAdmin = localStorage.getItem(ADMIN_KEY) === "1";
     setLoggedIn(isAdmin);
+    const seen = Number(localStorage.getItem(BELL_KEY) ?? "0");
+    setLastSeenMs(Number.isFinite(seen) ? seen : 0);
   }, []);
 
   useEffect(() => {
@@ -135,6 +141,15 @@ export default function AdminPage() {
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const current = Math.min(page, totalPages);
   const paged = rows.slice((current - 1) * pageSize, current * pageSize);
+  const bellRows = state.recentNotifications.filter((n) => n.audience === "all" || n.audience === "admin");
+  const unread = bellRows.filter((n) => n.created_at_ms > lastSeenMs).length;
+
+  const openBell = () => {
+    setShowBell((v) => !v);
+    const latest = bellRows[0]?.created_at_ms ?? lastSeenMs;
+    localStorage.setItem(BELL_KEY, String(latest));
+    setLastSeenMs(latest);
+  };
 
   if (!loggedIn) {
     return (
@@ -156,11 +171,30 @@ export default function AdminPage() {
         <div className="mt-1 flex items-center justify-between gap-2">
           <h1 className="text-xl font-extrabold">Admin Panel</h1>
           <div className="flex gap-2">
+            <button onClick={openBell} className="relative rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold" title="Notifications" aria-label="Notifications">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h11z" />
+                <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+              </svg>
+              {unread > 0 ? <span className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{unread}</span> : null}
+            </button>
             <button onClick={() => void loadState()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button>
             <button onClick={logout} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Logout</button>
           </div>
         </div>
       </div>
+
+      {showBell ? (
+        <div className="glass-card max-h-64 space-y-2 overflow-auto rounded-2xl p-3 shadow-sm">
+          {bellRows.length === 0 ? <p className="text-sm text-slate-500">No notifications yet.</p> : null}
+          {bellRows.slice(0, 3).map((n) => (
+            <div key={n.id} className="rounded-lg border border-slate-200 bg-white p-2">
+              <p className="text-xs font-semibold text-slate-800">{n.title}</p>
+              <p className="text-xs text-slate-600">{n.message}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="glass-card rounded-3xl p-4 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current Tokens</p>
