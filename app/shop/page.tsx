@@ -52,7 +52,6 @@ function ItemIcon({ item }: { item: SpendItem }) {
 export default function ShopPage() {
   const [pin, setPin] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
-  const [blocked, setBlocked] = useState(false);
   const [state, setState] = useState<AppState>(initialState());
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState("");
@@ -105,8 +104,6 @@ export default function ShopPage() {
 
   useEffect(() => {
     const isShop = localStorage.getItem(SHOP_KEY) === "1";
-    const isAdmin = localStorage.getItem(ADMIN_KEY) === "1";
-    setBlocked(!isShop && isAdmin);
     setLoggedIn(isShop);
   }, []);
 
@@ -178,7 +175,6 @@ export default function ShopPage() {
   const pagedRows = rows.slice((current - 1) * pageSize, current * pageSize);
 
   if (!loggedIn) {
-    if (blocked) return <div className="glass-card mx-auto max-w-sm rounded-2xl p-4 text-sm shadow-sm"><p>Admin login active. Logout admin first.</p></div>;
     return (
       <div className="mx-auto max-w-sm space-y-4">
         <div className="glass-card rounded-3xl p-5 shadow-sm">
